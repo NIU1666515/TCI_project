@@ -3,78 +3,41 @@ import os
 
 def read_image(img_name):
     base = os.path.basename(img_name)
-    identificador, raw = os.path.splitext(base)
-    parts = identificador.split('.')
-
-    nom, dades = parts
-
-    dades_separades = dades.split('_')
-    tipus,num_components, files, columnes = dades_separades
-
+    identificador, _ = os.path.splitext(base)
+    nom, dades = identificador.split('.', 1)
+    tipus, num_components, files, columnes = dades.split('_')
     if tipus.startswith('ube'):
-        signed = "unsigned"
-        endian = "big"
-        num_bytes = int(tipus[3:])
+        signed, endian = "unsigned", "big"; bits = int(tipus[3:])
     elif tipus.startswith('ule'):
-        signed = "unsigned"
-        endian = "little"
-        num_bytes = int(tipus[3:])
+        signed, endian = "unsigned", "little"; bits = int(tipus[3:])
     elif tipus.startswith('sbe'):
-        signed = "signed"
-        endian = "big"
-        num_bytes = int(tipus[3:])
+        signed, endian = "signed", "big"; bits = int(tipus[3:])
     elif tipus.startswith('sle'):
-        signed = "signed"
-        endian = "little"
-        num_bytes = int(tipus[3:])
+        signed, endian = "signed", "little"; bits = int(tipus[3:])
     else:
-        raise ValueError("Tipus desconegut")
+        raise ValueError(f"Tipus desconegut: {tipus}")
+    num_bytes = bits // 8
+    return {"files": int(files), "columnes": int(columnes), "num_bytes": num_bytes, "signed": signed, "endian": endian, "nom": nom, "components": int(num_components)}
 
-    return {
-        "files": files,
-        "columnes": columnes,
-        "num_bytes": num_bytes,
-        "signed": signed,
-        "endian": endian,
-        "nom": nom,
-        "components": num_components
-    }
-
-diccionario = {}
-img = "C:/Users/pablo/PycharmProjects/TCI_project/imatges/03508649.ube16_1_512_512.raw"
-diccionario = read_image(img)
-def write_copy(img,diccioanrio,augmentar):
-    num_bytes = diccionario['num_bytes']
-    if augmentar and num_bytes == 1:
-        num_bytes = 2
-    print(img)
-    if diccionario['signed'] == "unsigned" and diccionario['endian'] =="little":
-        tipus = "ule"
-    elif diccionario['signed'] == "unsigned" and diccionario['endian'] =="big":
-        tipus = "ube"
-    elif diccionario['signed'] == "signed" and diccionario['endian'] =="little":
-        tipus = "sle"
-    elif diccionario['signed'] == "signed" and diccionario['endian'] =="big":
-        tipus = "sbe"
-
-    num_bits = num_bytes * 8//8
-    print(num_bits)
-    tipus = tipus + str(num_bits)
-    print(tipus)
-
-    nom_copia = diccionario['nom'] + "_copia"
+def write_copy(img, d, augmentar):
+    nbytes = d['num_bytes']
+    if augmentar and nbytes == 1: nbytes = 2
+    if d['signed']=="unsigned" and d['endian']=="little": prefix="ule"
+    elif d['signed']=="unsigned" and d['endian']=="big": prefix="ube"
+    elif d['signed']=="signed" and d['endian']=="little": prefix="sle"
+    else: prefix="sbe"
+    bits = nbytes*8
+    nom_copia = d['nom']+"_copia"
     folder = os.path.dirname(img) or "."
-    img_copy = os.path.join(folder,f"{nom_copia}.{tipus}_{diccionario['components']}_{diccionario['files']}_{diccionario['columnes']}.raw")
+    img_copy = os.path.join(folder, f"{nom_copia}.{prefix}{bits}_{d['components']}_{d['files']}_{d['columnes']}.raw")
+    kind = 'u' if d['signed']=="unsigned" else 'i'
+    endian = '>' if d['endian']=="big" else '<'
+    arr = np.fromfile(img, dtype=np.dtype(endian+kind+str(d['num_bytes'])))
+    if nbytes != d['num_bytes']:
+        arr = arr.astype(np.dtype(endian+kind+str(nbytes)))
+    arr.tofile(img_copy)
+    print("Copia creada:", img_copy)
 
-    print(img_copy)
-
-
-
-augmentar = True
-write_copy(img,diccionario,augmentar)
-
-
-#print (diccionario)
-
-
-
+img = r"C:/Users/pablo/PycharmProjects/TCI_project/imatges/03508649.ube16_1_512_512.raw"
+d = read_image(img)
+write_copy(img, d, True)
