@@ -25,7 +25,7 @@ def read_image(img_name):
 
     num_bytes = bits // 8
 
-    return {
+    d = {
         "files": int(files),
         "columnes": int(columnes),
         "num_bytes": num_bytes,
@@ -35,11 +35,20 @@ def read_image(img_name):
         "components": int(num_components)
     }
 
+    kind = 'u' if d['signed'] == "unsigned" else 'i'
+    endian = '>' if d['endian'] == "big" else '<'
+    dtype_original = np.dtype(endian + kind + str(d['num_bytes']))
 
-def write_copy(img, d, augmentar):
+    arr = np.fromfile(img, dtype=dtype_original)
+
+    return (d,arr)
+
+
+def write_copy(img, d, augmentar,arr):
+
     nbytes = d['num_bytes']
-    if augmentar and nbytes == 1:
-        nbytes = 2
+    if augmentar:
+        nbytes = nbytes * 2
 
     if d['signed'] == "unsigned" and d['endian'] == "little":
         prefix = "ule"
@@ -59,20 +68,57 @@ def write_copy(img, d, augmentar):
         f"{nom_copia}.{prefix}{bits}_{d['components']}_{d['files']}_{d['columnes']}.raw"
     )
 
-    kind = 'u' if d['signed'] == "unsigned" else 'i'
-    endian = '>' if d['endian'] == "big" else '<'
-    dtype_original = np.dtype(endian + kind + str(d['num_bytes']))
 
-    arr = np.fromfile(img, dtype=dtype_original)
-
-    if nbytes != d['num_bytes']:
-        dtype_nuevo = np.dtype(endian + kind + str(nbytes))
-        arr = arr.astype(dtype_nuevo)
 
     arr.tofile(img_copy)
     print("Copia creada:", img_copy)
 
+def entropy_calculator(arr):
+    """Calcula la entropía del array de imagen."""
+    # Aplanar el array (por si es multidimensional)
+    arr_flat = arr.flatten()
 
-img = r"/home/beltix/UNI/4t/TCI/TCI_project/imatges/n1_GRAY.ube8_1_2560_2048.raw"
-d = read_image(img)
-write_copy(img, d, True)
+    # Calcular histograma con todos los posibles valores (0-255 o según el tipo)
+    hist, _ = np.histogram(arr_flat, bins=256, range=(0, 255))
+
+    # Normalizar para obtener probabilidades
+    p = hist / np.sum(hist)
+
+    # Evitar log(0)
+    p = p[p > 0]
+
+    # Calcular entropía
+    entropy = -np.sum(p * np.log2(p))
+
+    print(f"Entropia de la imatge: {entropy:.4f} bits/píxel")
+    return entropy
+
+
+def input_function(img):
+    print("Quina acció vols realitzar sobre la imatge?")
+    print("1. Llegir")
+    print("2. Escriure")
+    print("3. Calcular Entropia")
+    option = input("Introdueix l'acció:")
+
+    match option:
+        case "1":
+            d,arr = read_image(img)
+        case "2":
+            d, arr = read_image(img)
+            augmentar = False
+
+            if d['num_bytes'] == 1:
+                resposta = input("Vols augmentar a 2 bytes? (Y/N): ").strip().upper()
+                augmentar = (resposta == "Y")
+
+            write_copy(img, d, augmentar, arr)
+        case "3":
+            d, arr = read_image(img)
+            entropy_calculator(arr)
+
+
+img = r"C:\Users\pablo\PycharmProjects\TCI_project\imatges\n1_GRAY.ube8_1_2560_2048.raw"
+
+
+input_function(img)
