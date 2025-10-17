@@ -1,6 +1,6 @@
 import os
 import numpy as np
-
+import math
 
 def read_image(img_name):
     base = os.path.basename(img_name)
@@ -73,25 +73,58 @@ def write_copy(img, d, augmentar,arr):
     arr.tofile(img_copy)
     print("Copia creada:", img_copy)
 
-def entropy_calculator(arr):
-    """Calcula la entropía del array de imagen."""
-    # Aplanar el array (por si es multidimensional)
-    arr_flat = arr.flatten()
+def probabilitats(arr):
+    arr_flat = arr.tolist()
+    total = len(arr_flat)
 
-    # Calcular histograma con todos los posibles valores (0-255 o según el tipo)
-    hist, _ = np.histogram(arr_flat, bins=256, range=(0, 255))
+    p_marg = {}
+    p_conj = {}
+    for i in range(total):
+        p_marg[arr_flat[i]] = p_marg.get(arr_flat[i], 0) + 1
+        if i < total - 1:
+            pair = (arr_flat[i], arr_flat[i + 1])
+            p_conj[pair] = p_conj.get(pair, 0) + 1
 
-    # Normalizar para obtener probabilidades
-    p = hist / np.sum(hist)
+    for k in p_marg:
+        p_marg[k] /= total
+    for k in p_conj:
+        p_conj[k] /= (total - 1)
 
-    # Evitar log(0)
-    p = p[p > 0]
+    p_cond = {(b, a): p_conj[(a, b)] / p_marg[a] for (a, b) in p_conj}
 
-    # Calcular entropía
-    entropy = -np.sum(p * np.log2(p))
+    return p_marg, p_conj, p_cond
 
-    print(f"Entropia de la imatge: {entropy:.4f} bits/píxel")
+
+def entropia_0(arr):
+    p_marg, _, _ = probabilitats(arr)
+
+    entropy = -sum(prob * math.log2(prob) for prob in p_marg.values())
+
+    print("Entropia de la imatge:" , entropy , " bits/píxel")
     return entropy
+
+def entropia_1(arr):
+    _, p_conjunta, p_condicional = probabilitats(arr)
+    entropy = 0.0
+    for (pixel_prev, pixel_curr), p_conj_val in p_conjunta.items():
+        p_cond_val = p_condicional[(pixel_curr, pixel_prev)]
+        entropy -= p_conj_val * math.log2(p_cond_val)
+    print("Entropia condicional respecte el pixel anterior:", entropy, "bits/píxel")
+    return entropy
+
+def quantitzacio(arr,q):
+    arr_flat = arr.tolist()
+    val_min = np.min(arr_flat)
+    val_max = np.max(arr_flat)
+
+    pas_quant = (val_max - val_min + 1) / q
+
+    arr_quant = [int((val - val_min) // pas_quant) for val in arr_flat]
+
+    return arr_quant
+
+#def descuantitzar(arr_quantitzat,q):
+
 
 
 def input_function(img):
@@ -99,6 +132,7 @@ def input_function(img):
     print("1. Llegir")
     print("2. Escriure")
     print("3. Calcular Entropia")
+    print("4. Quantitzar")
     option = input("Introdueix l'acció:")
 
     match option:
@@ -114,8 +148,17 @@ def input_function(img):
 
             write_copy(img, d, augmentar, arr)
         case "3":
+            print("1. Entropia 0")
+            print("2. Entropia 1")
+            entropy = input("Introdueix la entropia: ")
             d, arr = read_image(img)
-            entropy_calculator(arr)
+            if(entropy == "1"):
+                entropia_0(arr)
+            else: entropia_1(arr)
+        case "4":
+            d, arr = read_image(img)
+            q = input("Introdueix el valor de quantització:")
+            quantitzacio(arr, q)
 
 
 img = r"C:\Users\pablo\PycharmProjects\TCI_project\imatges\n1_GRAY.ube8_1_2560_2048.raw"
