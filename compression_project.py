@@ -1,6 +1,6 @@
 import os
 import numpy as np
-
+import math
 
 def read_image(img_name):
     base = os.path.basename(img_name)
@@ -25,7 +25,7 @@ def read_image(img_name):
 
     num_bytes = bits // 8
 
-    return {
+    d = {
         "files": int(files),
         "columnes": int(columnes),
         "num_bytes": num_bytes,
@@ -35,11 +35,34 @@ def read_image(img_name):
         "components": int(num_components)
     }
 
+    kind = 'u' if d['signed'] == "unsigned" else 'i'
+    endian = '>' if d['endian'] == "big" else '<'
+    dtype_original = np.dtype(endian + kind + str(d['num_bytes']))
 
-def write_copy(img, d, augmentar):
+    arr = np.fromfile(img, dtype=dtype_original)
+
+    return (d,arr)
+
+
+def write_copy(img, d, augmentar, arr):
     nbytes = d['num_bytes']
-    if augmentar and nbytes == 1:
-        nbytes = 2
+    if augmentar:
+        nbytes = nbytes * 2
+
+    if d['signed'] == "unsigned":
+        if nbytes == 1:
+            arr = arr.astype(np.uint8)
+        elif nbytes == 2:
+            arr = arr.astype(np.uint16)
+        else:
+            arr = arr.astype(np.uint32)
+    else:
+        if nbytes == 1:
+            arr = arr.astype(np.int8)
+        elif nbytes == 2:
+            arr = arr.astype(np.int16)
+        else:
+            arr = arr.astype(np.int32)
 
     if d['signed'] == "unsigned" and d['endian'] == "little":
         prefix = "ule"
@@ -59,20 +82,110 @@ def write_copy(img, d, augmentar):
         f"{nom_copia}.{prefix}{bits}_{d['components']}_{d['files']}_{d['columnes']}.raw"
     )
 
-    kind = 'u' if d['signed'] == "unsigned" else 'i'
-    endian = '>' if d['endian'] == "big" else '<'
-    dtype_original = np.dtype(endian + kind + str(d['num_bytes']))
-
-    arr = np.fromfile(img, dtype=dtype_original)
-
-    if nbytes != d['num_bytes']:
-        dtype_nuevo = np.dtype(endian + kind + str(nbytes))
-        arr = arr.astype(dtype_nuevo)
-
     arr.tofile(img_copy)
     print("Copia creada:", img_copy)
 
 
-img = r"/home/beltix/UNI/4t/TCI/TCI_project/imatges/n1_GRAY.ube8_1_2560_2048.raw"
-d = read_image(img)
-write_copy(img, d, True)
+def probabilitats(arr):
+    arr_flat = arr.tolist()
+    total = len(arr_flat)
+
+    p_marg = {}
+    p_conj = {}
+    for i in range(total):
+        p_marg[arr_flat[i]] = p_marg.get(arr_flat[i], 0) + 1
+        if i < total - 1:
+            pair = (arr_flat[i], arr_flat[i + 1])
+            p_conj[pair] = p_conj.get(pair, 0) + 1
+
+    for k in p_marg:
+        p_marg[k] /= total
+    for k in p_conj:
+        p_conj[k] /= (total - 1)
+
+    p_cond = {(b, a): p_conj[(a, b)] / p_marg[a] for (a, b) in p_conj}
+
+    return p_marg, p_conj, p_cond
+
+
+def entropia_0(arr):
+    p_marg, _, _ = probabilitats(arr)
+
+    entropy = -sum(prob * math.log2(prob) for prob in p_marg.values())
+
+    print("Entropia de la imatge:" , entropy , " bits/píxel")
+    return entropy
+
+def entropia_1(arr):
+    _, p_conjunta, p_condicional = probabilitats(arr)
+    entropy = 0.0
+    for (pixel_prev, pixel_curr), p_conj_val in p_conjunta.items():
+        p_cond_val = p_condicional[(pixel_curr, pixel_prev)]
+        entropy -= p_conj_val * math.log2(p_cond_val)
+    print("Entropia condicional respecte el pixel anterior:", entropy, "bits/píxel")
+    return entropy
+
+def quantitzacio(arr, q):
+    q = int(q)
+    arr = np.asarray(arr, dtype=int)
+    arr_q = np.round(arr / q).astype(int)
+    return arr_q
+
+#floor
+def desquantitzacio(arr_q, q):
+    q = int(q)
+    arr_q = np.asarray(arr_q, dtype=int)
+    arr_rec = np.round(arr_q * q).astype(int)
+    return arr_rec
+
+
+def input_function(img):
+    print("Quina acció vols realitzar sobre la imatge?")
+    print("1. Llegir")
+    print("2. Escriure")
+    print("3. Calcular Entropia")
+    print("4. Quantitzar")
+    print("5. Desquantizar")
+    option = input("Introdueix l'acció:")
+
+    match option:
+        case "1":
+            d,arr = read_image(img)
+        case "2":
+            d, arr = read_image(img)
+            augmentar = False
+
+            if d['num_bytes'] == 1:
+                resposta = input("Vols augmentar a 2 bytes? (Y/N): ").strip().upper()
+                augmentar = (resposta == "Y")
+
+            write_copy(img, d, augmentar, arr)
+        case "3":
+            print("1. Entropia 0")
+            print("2. Entropia 1")
+            entropy = input("Introdueix la entropia: ")
+            d, arr = read_image(img)
+            if(entropy == "1"):
+                entropia_0(arr)
+            else: entropia_1(arr)
+        case "4":
+            d, arr = read_image(img)
+            q = input("Introdueix el valor de quantització: ")
+            arr_quantitzat = quantitzacio(arr, q)
+            write_copy(img, d, False, arr_quantitzat)
+            entropia_0(arr_quantitzat)
+        case '5':
+            d, arr = read_image(img_quantitzada)
+            q = input("Introdueix el valor de quantització: ")
+            arr_quantitzat = quantitzacio(arr, q)
+            arr_desquantitzat = desquantitzacio(arr_quantitzat, q)
+            write_copy(img, d, False, arr_desquantitzat)
+            entropia_0(arr_desquantitzat)
+
+
+
+
+img = r"C:\Users\pablo\PycharmProjects\TCI_project\imatges\n1_GRAY.ube8_1_2560_2048.raw"
+img_quantitzada = r"C:\Users\pablo\PycharmProjects\TCI_project\imatges\n1_GRAY_copia.ube8_1_2560_2048.raw"
+
+input_function(img)
