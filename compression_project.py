@@ -39,7 +39,7 @@ def read_image(img_name):
     endian = '>' if d['endian'] == "big" else '<'
     dtype_original = np.dtype(endian + kind + str(d['num_bytes']))
 
-    arr = np.fromfile(img, dtype=dtype_original)
+    arr = np.fromfile(img_name, dtype=dtype_original)
 
     return (d,arr)
 
@@ -131,12 +131,40 @@ def quantitzacio(arr, q):
     arr_q = np.round(arr / q).astype(int)
     return arr_q
 
-#floor
 def desquantitzacio(arr_q, q):
     q = int(q)
     arr_q = np.asarray(arr_q, dtype=int)
     arr_rec = np.round(arr_q * q).astype(int)
     return arr_rec
+
+def calcul_pae(a, b):
+    a, b = np.asarray(a), np.asarray(b)
+    return int(np.max(np.abs(a.astype(np.int64) - b.astype(np.int64))))
+
+def calcul_mse(a, b):
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    return float(np.mean((a - b) ** 2))
+
+def calcul_psnr(a, b, max_val=255):
+    m = calcul_mse(a, b)
+    if m == 0:
+        return float('mse_false')
+    return 10 * math.log10((max_val * max_val) / m)
+
+def predictor_izquierda(arr, d):
+    H, W = d["files"], d["columnes"]
+    I = np.asarray(arr, dtype=np.int32).reshape(H, W)
+    R = np.empty_like(I, dtype=np.int32)
+    R[:, 0] = I[:, 0]
+    R[:, 1:] = I[:, 1:] - I[:, :-1]
+
+    return R.ravel()
+
+def reconstruir_izquierda(residual, d):
+    H, W = d["files"], d["columnes"]
+    R = np.asarray(residual, dtype=np.int32).reshape(H, W)
+    Y = np.cumsum(R, axis=1)
+    return Y.ravel()
 
 
 def input_function(img):
@@ -145,7 +173,9 @@ def input_function(img):
     print("2. Escriure")
     print("3. Calcular Entropia")
     print("4. Quantitzar")
-    print("5. Desquantizar")
+    print("5. Quantitzar i Desquantizar")
+    print("6. Calculs")
+    print("7. Predictor")
     option = input("Introdueix l'acció:")
 
     match option:
@@ -174,18 +204,42 @@ def input_function(img):
             arr_quantitzat = quantitzacio(arr, q)
             write_copy(img, d, False, arr_quantitzat)
             entropia_0(arr_quantitzat)
-        case '5':
-            d, arr = read_image(img_quantitzada)
+        case "5":
+            d, arr = read_image(img)
             q = input("Introdueix el valor de quantització: ")
             arr_quantitzat = quantitzacio(arr, q)
             arr_desquantitzat = desquantitzacio(arr_quantitzat, q)
             write_copy(img, d, False, arr_desquantitzat)
             entropia_0(arr_desquantitzat)
+        case "6":
+            d, arr = read_image(img)
+            d4, arr_q = read_image(img_copia)
+            print("1. PAE")
+            print("2. MSE")
+            print("3. PSNR")
+            option_calcul = input("Introdueix el calcul:")
+            match option_calcul:
+                case "1": 
+                    pae_res = calcul_pae(arr, arr_q)
+                    print("Calcul del PAE: ", pae_res)
+                case "2":
+                    mse_res = calcul_mse(arr, arr_q)
+                    print("Calcul del MSE", mse_res)
+                case "3":
+                    psnr_res = calcul_psnr(arr, arr_q)
+                    print("Calcul del PSNR", psnr_res)
+        case "7":
+            d, arr = read_image(img)
+            arr_predict=predictor_izquierda(arr,d)
+            q = input("Introdueix el valor de quantització: ")
+            arr_quantitzat = quantitzacio(arr_predict, q)
+            arr_desquantitzat = desquantitzacio(arr_quantitzat, q)
+            arr_despredict=reconstruir_izquierda(arr_desquantitzat,d)
+            write_copy(img, d, False, arr_despredict)
 
+img_= r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
 
-
-
-img = r"C:\Users\pablo\PycharmProjects\TCI_project\imatges\n1_GRAY.ube8_1_2560_2048.raw"
-img_quantitzada = r"C:\Users\pablo\PycharmProjects\TCI_project\imatges\n1_GRAY_copia.ube8_1_2560_2048.raw"
+img = r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY.ube8_1_2560_2048.raw"
+img_copia = r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
 
 input_function(img)
