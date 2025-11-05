@@ -151,7 +151,7 @@ def calcul_psnr(a, b, max_val=255):
         return float('mse_false')
     return 10 * math.log10((max_val * max_val) / m)
 
-def predictor_izquierda(arr, d):
+def predictor(arr, d):
     H, W = d["files"], d["columnes"]
     I = np.asarray(arr, dtype=np.int32).reshape(H, W)
     R = np.empty_like(I, dtype=np.int32)
@@ -160,7 +160,7 @@ def predictor_izquierda(arr, d):
 
     return R.ravel()
 
-def reconstruir_izquierda(residual, d):
+def reconstruir_predictor(residual, d):
     H, W = d["files"], d["columnes"]
     R = np.asarray(residual, dtype=np.int32).reshape(H, W)
     Y = np.cumsum(R, axis=1)
@@ -230,11 +230,11 @@ def input_function(img):
                     print("Calcul del PSNR", psnr_res)
         case "7":
             d, arr = read_image(img)
-            arr_predict=predictor_izquierda(arr,d)
+            arr_predict=predictor(arr,d)
             q = input("Introdueix el valor de quantització: ")
             arr_quantitzat = quantitzacio(arr_predict, q)
             arr_desquantitzat = desquantitzacio(arr_quantitzat, q)
-            arr_despredict=reconstruir_izquierda(arr_desquantitzat,d)
+            arr_despredict=reconstruir_predictor(arr_desquantitzat,d)
             write_copy(img, d, False, arr_despredict)
 
 img_= r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
