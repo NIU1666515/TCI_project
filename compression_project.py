@@ -157,12 +157,14 @@ def predictor(arr, d):
     R = np.empty_like(I, dtype=np.int32)
     R[:, 0] = I[:, 0]
     R[:, 1:] = I[:, 1:] - I[:, :-1]
+    R_pos = np.where(R >= 0, R << 1, (-R << 1) - 1)
+    return R_pos.ravel()
 
-    return R.ravel()
 
-def reconstruir_predictor(residual, d):
+def reconstruir_predictor(predicted, d):
     H, W = d["files"], d["columnes"]
-    R = np.asarray(residual, dtype=np.int32).reshape(H, W)
+    R_pos = np.asarray(predicted, dtype=np.int32).reshape(H, W)
+    R = np.where((R_pos & 1) == 0, R_pos >> 1, -((R_pos + 1) >> 1))
     Y = np.cumsum(R, axis=1)
     return Y.ravel()
 
@@ -231,10 +233,9 @@ def input_function(img):
         case "7":
             d, arr = read_image(img)
             arr_predict=predictor(arr,d)
-            q = input("Introdueix el valor de quantització: ")
-            arr_quantitzat = quantitzacio(arr_predict, q)
-            arr_desquantitzat = desquantitzacio(arr_quantitzat, q)
-            arr_despredict=reconstruir_predictor(arr_desquantitzat,d)
+            entropia_0(arr_predict)
+            print(any(x < 0 for x in arr_predict))
+            arr_despredict=reconstruir_predictor(arr_predict,d)
             write_copy(img, d, False, arr_despredict)
 
 img_= r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
@@ -243,3 +244,4 @@ img = r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY.ube8_1_2560_2048.raw"
 img_copia = r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
 
 input_function(img)
+
