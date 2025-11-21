@@ -2,6 +2,15 @@ import os
 import numpy as np
 import math
 
+def read_dir():
+    ruta = "/home/beltix/UNI/4t/TCI/imatges"
+    arxius = os.listdir(ruta)
+    for i, nom in enumerate(arxius):
+        print(i+1,nom)
+    print("Quin fitxer vols processar?")
+    num_arxiu = int(input("Introdueix el numero de fitxer: ")) - 1
+    return os.path.join(ruta, arxius[num_arxiu])
+
 def read_image(img_name):
     base = os.path.basename(img_name)
     identificador, _ = os.path.splitext(base)
@@ -42,7 +51,6 @@ def read_image(img_name):
     arr = np.fromfile(img_name, dtype=dtype_original)
 
     return (d,arr)
-
 
 def write_copy(img, d, augmentar, arr):
     nbytes = d['num_bytes']
@@ -85,7 +93,6 @@ def write_copy(img, d, augmentar, arr):
     arr.tofile(img_copy)
     print("Copia creada:", img_copy)
 
-
 def probabilitats(arr):
     arr_flat = arr.tolist()
     total = len(arr_flat)
@@ -106,7 +113,6 @@ def probabilitats(arr):
     p_cond = {(b, a): p_conj[(a, b)] / p_marg[a] for (a, b) in p_conj}
 
     return p_marg, p_conj, p_cond
-
 
 def entropia_0(arr):
     p_marg, _, _ = probabilitats(arr)
@@ -160,7 +166,6 @@ def predictor(arr, d):
     R_pos = np.where(R >= 0, R << 1, (-R << 1) - 1)
     return R_pos.ravel()
 
-
 def reconstruir_predictor(predicted, d):
     H, W = d["files"], d["columnes"]
     R_pos = np.asarray(predicted, dtype=np.int32).reshape(H, W)
@@ -168,8 +173,7 @@ def reconstruir_predictor(predicted, d):
     Y = np.cumsum(R, axis=1)
     return Y.ravel()
 
-
-def input_function(img):
+#def input_function(img):
     print("Quina acció vols realitzar sobre la imatge?")
     print("1. Llegir")
     print("2. Escriure")
@@ -182,6 +186,7 @@ def input_function(img):
 
     match option:
         case "1":
+            read_dir()
             d,arr = read_image(img)
         case "2":
             d, arr = read_image(img)
@@ -238,10 +243,36 @@ def input_function(img):
             arr_despredict=reconstruir_predictor(arr_predict,d)
             write_copy(img, d, False, arr_despredict)
 
-img_= r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
+def main_process():
+    print("Quina acció vols realitzar sobre la imatge?")
+    print("1. Comprimir")
+    print("2. Descomprimir")
+    option = input("Introdueix l'acció:")
+    match option:
+        case "1":
+            img=read_dir()
+            d,arr = read_image(img)
+            print("Entropia arxiu:")
+            entropia_0(arr)
+            q = input("Introdueix el valor de quantització: ")
+            arr_quantitzat = quantitzacio(arr, q)
+            arr_predict=predictor(arr_quantitzat,d)
+            arr_codificat=codificador_aritmetic(arr_predict)
+            print("Entropia arxiu processat:")
+            entropia_0(arr_codificat)
+            write_copy(img, d, False, arr_codificat)
 
-img = r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY.ube8_1_2560_2048.raw"
-img_copia = r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
+        case "2":
+            img=read_dir()
+            d,arr = read_image(img)
+            print("Entropia arxiu:")
+            entropia_0(arr)
+            arr_decodificat=decodificador_aritmetic(arr)
+            arr_despredict=reconstruir_predictor(arr_decodificat,d)
+            q = input("Introdueix el valor de quantització: ")
+            arr_desquantitzat=desquantitzacio(arr_despredict,q)
+            print("Entropia arxiu processat:")
+            entropia_0(arr_desquantitzat)
+            write_copy(img, d, False, arr_desquantitzat)
 
-input_function(img)
 
