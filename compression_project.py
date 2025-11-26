@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import math
+import pickle
 
 # ---------------- Funciones de lectura/escritura ----------------
 def read_image(img_name):
@@ -314,6 +315,113 @@ def compute_cum_freq(data):
     return cum
 
 
+# --------- NUEVO: CODIFICAR A .TCI  ---------
+def encode_tci(img_path):
+    """
+    Codifica la imatge amb el codificador aritmètic i guarda:
+      - d (capçalera original)
+      - cum_freq (model)
+      - N (tamany)
+      - bitstream (codificat)
+    dins d'un fitxer .tci usant pickle.
+    """
+    d, arr = read_image(img_path)
+    arr = np.asarray(arr, dtype=np.int32)
+    N = len(arr)
+
+    # Model de probabilitats
+    cum_freq = compute_cum_freq(arr)
+
+    # Codificar amb ArithmeticCoder
+    bw = BitWriter()
+    coder = ArithmeticCoder()
+    for s in arr:
+        coder.encode_symbol(int(s), cum_freq, bw)
+    coder.finish(bw)
+
+    bitstream = bw.buffer
+    print(f"Bitstream codificat: {len(bitstream)} bytes")
+
+    paquet = {
+        "d": d,
+        "cum_freq": cum_freq,
+        "N": N,
+        "bitstream": bytes(bitstream)
+    }
+
+    folder = os.path.dirname(img_path) or "."
+    base = os.path.basename(img_path)
+    nombre_sin_ext, _ = os.path.splitext(base)
+    tci_path = os.path.join(folder, nombre_sin_ext + ".tci")
+
+    with open(tci_path, "wb") as f:
+        pickle.dump(paquet, f)
+
+    print("Fitxer .tci creat:", tci_path)
+    return tci_path
+
+
+# --------- NUEVO: DECODIFICAR DESDE .TCI ---------
+def decode_tci(tci_path):
+    """
+    Llegeix un .tci amb pickle i reconstrueix la imatge .raw original.
+    """
+    with open(tci_path, "rb") as f:
+        paquet = pickle.load(f)
+
+    d = paquet["d"]
+    cum_freq = paquet["cum_freq"]
+    N = paquet["N"]
+    bitstream = paquet["bitstream"]
+
+    br = BitReader(bytearray(bitstream))
+    decoder = ArithmeticDecoder(br)
+
+    # Decodificar
+    data = [decoder.decode_symbol(cum_freq) for _ in range(N)]
+    data = np.array(data, dtype=np.int32)
+
+    # Ajustar tipus segons header original
+    if d["signed"] == "unsigned":
+        if d["num_bytes"] == 1:
+            data = data.astype(np.uint8)
+        elif d["num_bytes"] == 2:
+            data = data.astype(np.uint16)
+        else:
+            data = data.astype(np.uint32)
+    else:
+        if d["num_bytes"] == 1:
+            data = data.astype(np.int8)
+        elif d["num_bytes"] == 2:
+            data = data.astype(np.int16)
+        else:
+            data = data.astype(np.int32)
+
+    # Nom del nou RAW
+    if d["signed"] == "unsigned" and d["endian"] == "little":
+        prefix = "ule"
+    elif d["signed"] == "unsigned" and d["endian"] == "big":
+        prefix = "ube"
+    elif d["signed"] == "signed" and d["endian"] == "little":
+        prefix = "sle"
+    else:
+        prefix = "sbe"
+
+    bits = d["num_bytes"] * 8
+    folder = os.path.dirname(tci_path) or "."
+    nom = d["nom"]
+
+    raw_path = os.path.join(
+        folder,
+        f"{nom}_dec.{prefix}{bits}_{d['components']}_{d['files']}_{d['columnes']}.raw"
+    )
+
+    data.tofile(raw_path)
+    print("Imatge reconstruïda guardada a:", raw_path)
+
+    return d, data, raw_path
+
+
 # ---------------- Función principal ----------------
 def input_function(img):
     print("Quina acció vols realitzar sobre la imatge?")
@@ -324,7 +432,8 @@ def input_function(img):
     print("5. Quantitzar i Desquantizar")
     print("6. Calculs")
     print("7. Predictor")
-    print("8. Codificador aritmètic")
+    print("8. Codificar a .tci")
+    print("9. Decodificar .tci")
     option = input("Introdueix l'acció:")
 
     match option:
@@ -390,38 +499,23 @@ def input_function(img):
             write_copy(img, d, False, arr_despredict)
 
         case "8":
-            d, arr = read_image(img)
-            q = input("Introdueix el valor de quantització: ")
+            # Codificar la imatge a .tci
+            encode_tci(img)
 
-            #arr_quantitzat = quantitzacio(arr, q)
-            #arr_predict = predictor(arr_quantitzat, d)
-
-            # Codificar a bitstream
-            cum_freq = compute_cum_freq(arr)
-            bw = BitWriter()
-            coder = ArithmeticCoder()
-            for s in arr:
-                coder.encode_symbol(s, cum_freq, bw)
-            coder.finish(bw)
-            bitstream = bw.buffer
-            print(f"Bitstream codificado: {len(bitstream)} bytes")
-
-            # Decodificar
-            br = BitReader(bitstream)
-            decoder = ArithmeticDecoder(br)
-            arr_decoded = [decoder.decode_symbol(cum_freq) for _ in arr]
-
-            arr_recon = reconstruir_predictor(arr_decoded, d)
-
-
-            write_copy(img, d, False, np.array(arr_recon, dtype=np.int32))
-            entropia_0(arr)
-            entropia_0(arr_decoded)
+        case "9":
+            # Decodificar el .tci corresponent a aquesta imatge
+            d, _ = read_image(img_)
+            folder = os.path.dirname(img) or "."
+            tci_path = os.path.join(folder, d["nom"] + ".tci")
+            decode_tci(tci_path)
 
 
 # ---------------- Ejecutar ----------------
-img_ = r"C:/Users/pablo/Downloads/TCI_images/imatges/n1_GRAY.ube8_1_2560_2048.raw"
-img = r"C:/Users/pablo/Downloads/TCI_images/imatges/n1_GRAY.ube8_1_2560_2048.raw"
-img_copia = r"C:/Users/pablo/Downloads/TCI_images/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
+img_ = r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY.ube8_1_2560_2048.tci"
+img = r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY.ube8_1_2560_2048.raw"
+img_copia = r"/home/beltix/UNI/4t/TCI/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
+#img_ = r"C:/Users/pablo/Downloads/TCI_images/imatges/n1_GRAY.ube8_1_2560_2048.raw"
+#img = r"C:/Users/pablo/Downloads/TCI_images/imatges/n1_GRAY.ube8_1_2560_2048.raw"
+#img_copia = r"C:/Users/pablo/Downloads/TCI_images/imatges/n1_GRAY_copia.ube8_1_2560_2048.raw"
 
 input_function(img)
