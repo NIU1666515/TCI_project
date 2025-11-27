@@ -58,21 +58,21 @@ def write_copy(img, d, augmentar, arr):
     if augmentar:
         nbytes = nbytes * 2
 
-    if d['signed'] == "unsigned":
-        if nbytes == 1:
-            arr = arr.astype(np.uint8)
-        elif nbytes == 2:
-            arr = arr.astype(np.uint16)
-        else:
-            arr = arr.astype(np.uint32)
-    else:
-        if nbytes == 1:
-            arr = arr.astype(np.int8)
-        elif nbytes == 2:
-            arr = arr.astype(np.int16)
-        else:
-            arr = arr.astype(np.int32)
+    endian_prefix = '>' if d['endian'] == "big" else '<'
 
+    if d['signed'] == "unsigned":
+        kind = 'u'
+    else:
+        kind = 'i'
+    if nbytes == 1:
+        if d['signed'] == "unsigned":
+            arr = arr.astype(np.uint8)
+        else:
+            arr = arr.astype(np.int8)
+    else:
+        dtype_str = endian_prefix + kind + str(nbytes)
+        dtype = np.dtype(dtype_str)
+        arr = arr.astype(dtype)
     if d['signed'] == "unsigned" and d['endian'] == "little":
         prefix = "ule"
     elif d['signed'] == "unsigned" and d['endian'] == "big":
@@ -93,6 +93,7 @@ def write_copy(img, d, augmentar, arr):
 
     arr.tofile(img_copy)
     print("Copia creada:", img_copy)
+
 
 def probabilitats(arr):
     arr_flat = arr.tolist()
@@ -159,7 +160,8 @@ def calcul_psnr(a, b, max_val=255):
     return 10 * math.log10((max_val * max_val) / m)
 
 def predictor(arr, d):
-    H, W = d["files"], d["columnes"]
+    H = d["files"] * d["components"]
+    W = d["columnes"]
     I = np.asarray(arr, dtype=np.int32).reshape(H, W)
     R = np.empty_like(I, dtype=np.int32)
     R[:, 0] = I[:, 0]
@@ -168,7 +170,8 @@ def predictor(arr, d):
     return R_pos.ravel()
 
 def reconstruir_predictor(predicted, d):
-    H, W = d["files"], d["columnes"]
+    H = d["files"] * d["components"]
+    W = d["columnes"]
     R_pos = np.asarray(predicted, dtype=np.int32).reshape(H, W)
     R = np.where((R_pos & 1) == 0, R_pos >> 1, -((R_pos + 1) >> 1))
     Y = np.cumsum(R, axis=1)
