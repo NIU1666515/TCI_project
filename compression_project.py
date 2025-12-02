@@ -4,7 +4,7 @@ import numpy as np
 import math
 
 def read_dir():
-    ruta = "/home/beltix/UNI/4t/TCI/imatges"
+    ruta = "C:/Users/pablo/PycharmProjects/TCI_project/imatges"
     arxius = os.listdir(ruta)
     for i, nom in enumerate(arxius):
         print(i+1,nom)
@@ -390,5 +390,15 @@ def main_process():
             entropia_0(arr_desquantitzat)
             write_copy(tci_img, d, False, arr_desquantitzat)
 
+def graphic_maker():
+    img=read_dir()
+    d, arr = read_image(img)
+    qstep = 128
+    for q in range(1,qstep):
+        arr_quantitzat = quantitzacio(arr, q)
+        entropia_0(arr)
+        psnr = calcul_psnr(arr,arr_quantitzat)
+        print("PSNR: " + psnr)
 
-main_process()
+graphic_maker()
+#main_process()
