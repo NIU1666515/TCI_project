@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 import math
-
+import matplotlib.pyplot as plt
 def read_dir():
     ruta = "C:/Users/pablo/TCI_images/imatges"
     arxius = os.listdir(ruta)
@@ -394,23 +394,47 @@ def main_process():
             write_copy(tci_img, d, False, arr_desquantitzat)
 
 def graphic_maker():
-    img=read_dir()
+    img = read_dir()
     d, arr = read_image(img)
-    qstep = 10 #Augmentar a 128 per l'exercici
-    for q in range(1,qstep):
-        entropia_0(arr)
+
+    folder = os.path.dirname(img)
+    base = os.path.basename(img)
+    nombre_sin_ext, _ = os.path.splitext(base)
+
+    diccionari_dades = {}
+    qstep = 10
+
+    for q in range(1, qstep):
+
         arr_quantitzat = quantitzacio(arr, q)
         arr_predict = predictor(arr_quantitzat, d)
-        codificador_aritmetic(arr_predict, d, img, q)
-        tci_img = read_dir()
+        tci_path = codificador_aritmetic(arr_predict, d, img, q)
+
+        tci_img = os.path.join(folder, nombre_sin_ext + ".tci")
+
         arr_decodificat, d, q = decodificador_aritmetic(tci_img)
         arr_despredict = reconstruir_predictor(arr_decodificat, d)
         arr_desquantitzat = desquantitzacio(arr_despredict, q)
-        psnr = calcul_psnr(arr,arr_desquantitzat)
-        print("Entropia arxiu processat:")
-        entropia_0(arr_desquantitzat)
 
-        print("PSNR: " , psnr)
+        psnr = calcul_psnr(arr, arr_desquantitzat)
+        entropia = entropia_0(arr_predict)
+
+        print("PSNR: ", psnr)
+
+
+        diccionari_dades[q] = (entropia, psnr)
+
+
+    entropies = [diccionari_dades[q][0] for q in diccionari_dades]
+    psnrs     = [diccionari_dades[q][1] for q in diccionari_dades]
+
+    plt.figure(figsize=(7, 5))
+    plt.plot(entropies, psnrs, marker='o')
+    plt.xlabel("Entropía (bps)")
+    plt.ylabel("PSNR (dB)")
+    plt.title("PSNR vs Entropía")
+    plt.grid(True)
+    plt.show()
 
 graphic_maker()
 #main_process()
