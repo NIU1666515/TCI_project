@@ -4,7 +4,7 @@ import numpy as np
 import math
 
 def read_dir():
-    ruta = "C:/Users/pablo/PycharmProjects/TCI_project/imatges"
+    ruta = "C:/Users/pablo/TCI_images/imatges"
     arxius = os.listdir(ruta)
     for i, nom in enumerate(arxius):
         print(i+1,nom)
@@ -153,11 +153,14 @@ def calcul_mse(a, b):
     a, b = np.asarray(a, float), np.asarray(b, float)
     return float(np.mean((a - b) ** 2))
 
+
+
 def calcul_psnr(a, b, max_val=255):
     m = calcul_mse(a, b)
     if m == 0:
-        return float('mse_false')
+        return float('inf')
     return 10 * math.log10((max_val * max_val) / m)
+
 
 def predictor(arr, d):
     H = d["files"] * d["components"]
@@ -328,7 +331,7 @@ def codificador_aritmetic(arr, d, img_path,q):
         "cum_freq": cum_freq,
         "N": N,
         "bitstream": bytes(bitstream),
-        "header": d,   # 👈 aquí guardem la capçalera
+        "header": d,   #  aquí guardem la capçalera
         "q": int(q),
     }
 
@@ -393,12 +396,21 @@ def main_process():
 def graphic_maker():
     img=read_dir()
     d, arr = read_image(img)
-    qstep = 128
+    qstep = 10 #Augmentar a 128 per l'exercici
     for q in range(1,qstep):
-        arr_quantitzat = quantitzacio(arr, q)
         entropia_0(arr)
-        psnr = calcul_psnr(arr,arr_quantitzat)
-        print("PSNR: " + psnr)
+        arr_quantitzat = quantitzacio(arr, q)
+        arr_predict = predictor(arr_quantitzat, d)
+        codificador_aritmetic(arr_predict, d, img, q)
+        tci_img = read_dir()
+        arr_decodificat, d, q = decodificador_aritmetic(tci_img)
+        arr_despredict = reconstruir_predictor(arr_decodificat, d)
+        arr_desquantitzat = desquantitzacio(arr_despredict, q)
+        psnr = calcul_psnr(arr,arr_desquantitzat)
+        print("Entropia arxiu processat:")
+        entropia_0(arr_desquantitzat)
+
+        print("PSNR: " , psnr)
 
 graphic_maker()
 #main_process()
