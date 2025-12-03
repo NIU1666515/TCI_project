@@ -402,7 +402,7 @@ def graphic_maker():
     nombre_sin_ext, _ = os.path.splitext(base)
 
     diccionari_dades = {}
-    qstep = 10
+    qstep = 60
 
     for q in range(1, qstep):
 
