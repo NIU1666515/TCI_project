@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+
 def read_dir():
     ruta = "C:/Users/pablo/TCI_images/imatges"
     arxius = os.listdir(ruta)
@@ -396,13 +397,14 @@ def main_process():
 def graphic_maker():
     img = read_dir()
     d, arr = read_image(img)
+    plt.close('all')
 
     folder = os.path.dirname(img)
     base = os.path.basename(img)
     nombre_sin_ext, _ = os.path.splitext(base)
 
     diccionari_dades = {}
-    qstep = 60
+    qstep = 5
 
     for q in range(1, qstep):
 
@@ -424,16 +426,38 @@ def graphic_maker():
 
         diccionari_dades[q] = (entropia, psnr)
 
+    entropies = np.array([float(diccionari_dades[q][0]) for q in diccionari_dades], dtype=float)
+    psnrs = np.array([float(diccionari_dades[q][1]) for q in diccionari_dades], dtype=float)
+    q_values = np.array(list(diccionari_dades.keys()), dtype=int)
 
-    entropies = [diccionari_dades[q][0] for q in diccionari_dades]
-    psnrs     = [diccionari_dades[q][1] for q in diccionari_dades]
+    orden = np.argsort(entropies)
+    entropies_sorted = entropies[orden]
+    psnrs_sorted = psnrs[orden]
 
-    plt.figure(figsize=(7, 5))
-    plt.plot(entropies, psnrs, marker='o')
+    x_smooth = np.linspace(entropies_sorted.min(), entropies_sorted.max(), 300)
+    y_smooth = np.interp(x_smooth, entropies_sorted, psnrs_sorted)
+
+    #PSNR i bps
+    plt.figure(figsize=(8, 6))
+    plt.plot(x_smooth, y_smooth, linewidth=2.3)
+    plt.scatter(entropies, psnrs, s=10, alpha=0.10)
     plt.xlabel("Entropía (bps)")
     plt.ylabel("PSNR (dB)")
-    plt.title("PSNR vs Entropía")
+    plt.title("PSNR vs Entropía (curva suavizada sin scipy)")
     plt.grid(True)
+    plt.tight_layout()
+
+
+    #Bps i Qstep
+    plt.figure(figsize=(8, 6))
+    plt.plot(q_values, entropies, marker='o', markersize=4)
+    plt.xlabel("Q (qstep)")
+    plt.ylabel("Entropía (bps)")
+    plt.title("Entropía (bps) en función de Q")
+    plt.grid(True)
+    plt.tight_layout()
+
+
     plt.show()
 
 graphic_maker()
