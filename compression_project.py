@@ -406,7 +406,7 @@ def graphic_maker():
     diccionari_dades = {}
     qstep = 50
 
-    for q in range(1, qstep):
+    for q in range(1, qstep+1):
 
         arr_quantitzat = quantitzacio(arr, q)
         arr_predict = predictor(arr_quantitzat, d)
