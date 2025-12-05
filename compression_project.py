@@ -404,7 +404,7 @@ def graphic_maker():
     nombre_sin_ext, _ = os.path.splitext(base)
 
     diccionari_dades = {}
-    qstep = 5
+    qstep = 50
 
     for q in range(1, qstep):
 
@@ -456,6 +456,16 @@ def graphic_maker():
     plt.title("Entropía (bps) en función de Q")
     plt.grid(True)
     plt.tight_layout()
+
+    output_path = os.path.join(folder, nombre_sin_ext + "_resultados.txt")
+
+    with open(output_path, "w") as f:
+        f.write("q\tentropia(bps)\tpsnr(dB)\n")
+        for q in sorted(diccionari_dades.keys()):
+            entropia, psnr = diccionari_dades[q]
+            f.write(f"{q}\t{entropia:.6f}\t{psnr:.6f}\n")
+
+    print(f"\nResultados guardados en: {output_path}\n")
 
 
     plt.show()
