@@ -167,20 +167,62 @@ def predictor(arr, d):
     H = d["files"] * d["components"]
     W = d["columnes"]
     I = np.asarray(arr, dtype=np.int32).reshape(H, W)
-    R = np.empty_like(I, dtype=np.int32)
-    R[:, 0] = I[:, 0]
-    R[:, 1:] = I[:, 1:] - I[:, :-1]
+    R = np.zeros_like(I)
+
+    for i in range(H):
+        for j in range(W):
+            if i == 0 and j == 0:
+                pred = 0
+            elif i == 0:
+                pred = I[i, j-1]
+            elif j == 0:
+                pred = I[i-1, j]
+            else:
+                a = I[i, j-1]
+                b = I[i-1, j]
+                c = I[i-1, j-1]
+                if c >= max(a, b):
+                    pred = min(a, b)
+                elif c <= min(a, b):
+                    pred = max(a, b)
+                else:
+                    pred = a + b - c
+
+            R[i, j] = I[i, j] - pred
+
     R_pos = np.where(R >= 0, R << 1, (-R << 1) - 1)
     return R_pos.ravel()
+
 
 def reconstruir_predictor(predicted, d):
     H = d["files"] * d["components"]
     W = d["columnes"]
     R_pos = np.asarray(predicted, dtype=np.int32).reshape(H, W)
     R = np.where((R_pos & 1) == 0, R_pos >> 1, -((R_pos + 1) >> 1))
-    Y = np.cumsum(R, axis=1)
-    return Y.ravel()
 
+    Y = np.zeros_like(R)
+    for i in range(H):
+        for j in range(W):
+            if i == 0 and j == 0:
+                pred = 0
+            elif i == 0:
+                pred = Y[i, j-1]
+            elif j == 0:
+                pred = Y[i-1, j]
+            else:
+                a = Y[i, j-1]
+                b = Y[i-1, j]
+                c = Y[i-1, j-1]
+                if c >= max(a, b):
+                    pred = min(a, b)
+                elif c <= min(a, b):
+                    pred = max(a, b)
+                else:
+                    pred = a + b - c
+
+            Y[i, j] = R[i, j] + pred
+
+    return Y.ravel()
 # ---------------- Bitstream Arithmetic Coding ----------------
 class BitWriter:
     def __init__(self):
@@ -315,7 +357,7 @@ def compute_cum_freq(data):
         cum[i + 1] = cum[i] + freq[i]
     return cum
 
-# ---------------- Codificador / Decodificador aritmètic sobre arrays ----------------
+
 def codificador_aritmetic(arr, d, img_path,q):
     arr = np.asarray(arr, dtype=np.int32)
     N = len(arr)
@@ -332,7 +374,7 @@ def codificador_aritmetic(arr, d, img_path,q):
         "cum_freq": cum_freq,
         "N": N,
         "bitstream": bytes(bitstream),
-        "header": d,   #  aquí guardem la capçalera
+        "header": d,
         "q": int(q),
     }
 
@@ -359,7 +401,7 @@ def decodificador_aritmetic(tci_path):
     cum_freq = paquet["cum_freq"]
     N = paquet["N"]
     bitstream = paquet["bitstream"]
-    d = paquet["header"]  
+    d = paquet["header"]
     q = paquet["q"]
 
     br = BitReader(bytearray(bitstream))
